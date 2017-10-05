@@ -1,0 +1,93 @@
+@if (1==1) /*
+@echo off
+
+if "%~2"=="" goto :USAGE
+if "%~1"=="/?" goto :USAGE
+
+rem ********************************************************************************
+:MAIN
+CScript //nologo //E:JScript "%~f0" %*
+If ERRORLEVEL 1 goto :USAGE
+goto :eof
+
+rem ********************************************************************************
+:USAGE
+echo USAGE:%~n0 [-s シート名] 入力ファイル 出力ファイル
+echo       xlsファイルを開き、CSV(カンマ区切り)形式で保存(SaveAs)します。
+echo.
+echo  【オプション】
+echo     -s シート名
+echo       この指定がない場合、1シート目を変換対象とします
+echo.
+echo     入力ファイル
+echo       入力ファイルを指定します
+echo.
+echo     出力ファイル
+echo       出力ファイルを指定します
+goto :eof
+
+rem ********************************************************************************
+rem */
+@end
+//---------------------------------------------------------- セットアップ
+var Args = WScript.Arguments;
+var EXCEL = WScript.CreateObject("EXCEL.Application");
+var SHELL = WScript.CreateObject("WScript.Shell");
+
+function echo(o){ WScript.Echo(o); }
+
+// EXCELの定数
+var xlCSV = 6;
+
+//---------------------------------------------------------- 引数処理
+var sheet = null;
+var infile = null;
+var outfile = null;
+for (var i=0; i<Args.Length; i++){
+	var p = Args(i);
+	switch (p) {
+	case "-s":
+		sheet = Args(++i);
+		break;
+	default:
+		if (!infile) {
+			infile = p;
+		} else {
+			outfile = p;
+		}
+		break;
+	}
+}
+if (!infile){
+	echo("入力ファイルが指定されていません");
+	WScript.Quit(9);
+}
+if (!outfile){
+	echo("出力ファイルが指定されていません");
+	WScript.Quit(9);
+}
+
+//---------------------------------------------------------- 主処理
+// カレントディレクトリの切り替え
+if (EXCEL.DefaultFilePath != SHELL.CurrentDirectory){
+	EXCEL.DefaultFilePath = SHELL.CurrentDirectory;
+	delete EXCEL;
+	EXCEL = WScript.CreateObject("EXCEL.Application");
+}
+
+// ファイルを開く
+var book = EXCEL.Workbooks.Open(infile);
+EXCEL.DisplayAlerts = false;
+
+try{
+	// シート切り替え
+	if (sheet != null){
+		book.Worksheets(sheet).Activate();
+	}
+	// xls変換
+	book.SaveAs(outfile, xlCSV);
+} catch(e){
+	echo(e.number + ":" + e.description);
+} finally {
+	book.Close(false);
+}

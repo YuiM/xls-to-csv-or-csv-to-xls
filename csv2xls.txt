@@ -1,0 +1,165 @@
+@if (1==1) /*
+@echo off
+
+if "%~3"=="" goto :USAGE
+if "%~1"=="/?" goto :USAGE
+
+rem ********************************************************************************
+:MAIN
+CScript //nologo //E:JScript "%~f0" %*
+If ERRORLEVEL 1 goto :USAGE
+goto :eof
+
+rem ********************************************************************************
+:USAGE
+echo USAGE:%~n0 [-s シート名] -f 変換フォーマット 入力ファイル 出力ファイル
+echo       EXCELよりCSV(カンマ区切り)形式を外部データ(QueryTable)として取り込み、
+echo       xls形式で保存(SaveAs)します。
+echo.
+echo  【オプション】
+echo     -s シート名
+echo       この指定がない場合、デフォルト値をシート名に設定します
+echo.
+echo     -f 変換フォーマット
+echo       Excelの、WorkSheet.QueryTable.TextFileColumnDataTypes
+echo       へ渡すパラメータを指定します。
+echo.
+echo         1 … 標準
+echo         2 … 文字列
+echo         5 … 日付
+echo         9 … 削除(非表示)
+echo.
+echo       ※ダブルクォートで括って指定します
+echo          例) "1,2,2,1"
+echo.
+echo     入力ファイル
+echo       入力ファイルを指定します
+echo.
+echo     出力ファイル
+echo       出力ファイルを指定します
+goto :eof
+
+rem ********************************************************************************
+rem */
+@end
+//---------------------------------------------------------- セットアップ
+var Args = WScript.Arguments;
+var EXCEL = WScript.CreateObject("EXCEL.Application");
+var SHELL = WScript.CreateObject("WScript.Shell");
+
+function echo(o){ WScript.Echo(o); }
+function JSArray2VBArray(arr) {
+  var vbs = new ActiveXObject("ScriptControl");
+	vbs.Language = "VBScript";	
+	vbs.AddCode(
+		"Function makeArray\n"
+		+ "makeArray = Array(" + arr + ")\n"
+		+ "End Function\n");
+	var ret = vbs.Run("makeArray");
+	return ret;
+}
+
+// EXCELの定数
+var xlNormal = -4143;
+var xlInsertDeleteCells = 1;
+var xlDelimited = 1;
+var xlTextQualifierDoubleQuote = 1;
+
+
+//---------------------------------------------------------- 引数処理
+var sheet_name = null;
+var format = null;
+var infile = null;
+var outfile = null;
+for (var i=0; i<Args.Length; i++){
+	var p = Args(i);
+	switch (p) {
+	case "-s":
+		sheet_name = Args(++i);
+		break;
+	case "-f":
+		format = Args(++i);
+		break;
+	default:
+		if (!infile) {
+			infile = p;
+		} else {
+			outfile = p;
+		}
+		break;
+	}
+}
+if (!format){
+	echo("変換パラメータが指定されていません");
+	WScript.Quit(9);
+}
+if (!infile){
+	echo("入力ファイルが指定されていません");
+	WScript.Quit(9);
+}
+if (!outfile){
+	echo("出力ファイルが指定されていません");
+	WScript.Quit(9);
+}
+
+//---------------------------------------------------------- 主処理
+EXCEL.DisplayAlerts = false;
+
+// カレントディレクトリの切り替え
+if (EXCEL.DefaultFilePath != SHELL.CurrentDirectory){
+	EXCEL.DefaultFilePath = SHELL.CurrentDirectory;
+	delete EXCEL;
+	EXCEL = WScript.CreateObject("EXCEL.Application");
+}
+
+// ファイルを新規作成(1シートのみ)
+var book = EXCEL.Workbooks.Add();
+try{
+	for(var i=1; i<=book.Worksheets.Count; i++){
+	    book.Sheets(2).Delete
+	}
+	var sheet = book.Sheets(1);
+
+	// ワークシート設定
+	if (sheet_name != null){
+		sheet.Name = sheet_name;
+	}
+	sheet.Cells.Font.Name = "ＭＳ Ｐゴシック";
+	sheet.Cells.Font.Size = 11;
+
+	// テキストファイル読み込み
+	var query = sheet.QueryTables.Add("TEXT;" + infile, sheet.Range("$A$1"));
+	{
+		query.FieldNames = true;
+		query.RowNumbers = false;
+		query.FillAdjacentFormulas = false;
+		query.PreserveFormatting = true;
+		query.RefreshOnFileOpen = false;
+		query.RefreshStyle = xlInsertDeleteCells;
+		query.SavePassword = false;
+		query.SaveData = true;
+		query.AdjustColumnWidth = true;
+		query.RefreshPeriod = 0;
+		query.TextFilePromptOnRefresh = false;
+		query.TextFilePlatform = 932;
+		query.TextFileStartRow = 1;
+		query.TextFileParseType = xlDelimited;
+		query.TextFileTextQualifier = xlTextQualifierDoubleQuote;
+		query.TextFileConsecutiveDelimiter = false;
+		query.TextFileTabDelimiter = false;
+		query.TextFileSemicolonDelimiter = false;
+		query.TextFileCommaDelimiter = true;
+		query.TextFileSpaceDelimiter = false;
+		query.TextFileColumnDataTypes = eval("JSArray2VBArray(" + format + ")");
+		query.TextFileTrailingMinusNumbers = true;
+		query.Refresh(false);	// BackgroundQuery
+		query.Parent.Names(query.Name).Delete();
+		query.Delete();
+	}
+	// xls変換して保存
+	book.SaveAs(outfile, xlNormal);
+} catch(e){
+	echo(e.number + ":" + e.description);
+} finally {
+	book.Close(false);
+}
