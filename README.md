@@ -1,4 +1,7 @@
 ﻿# xls-to-csv-or-csv-to-xls
+http://www.kunst1080.net/entry/2013/03/31/165215
+上記URLのものを忘備録としてGitにアップさせていただいています。
+
 概要
 
 BATファイルを作成し、コマンドラインからxls→csvやcsv→xlsの変換を行う。
